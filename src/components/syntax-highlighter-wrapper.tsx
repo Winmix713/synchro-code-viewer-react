@@ -6,7 +6,7 @@
 
 import React, { memo } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { tomorrow, tomorrowNight } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { tomorrow, dark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { SyntaxHighlighterProps } from '../types/code-preview';
 
 const SyntaxHighlighterWrapper = memo<SyntaxHighlighterProps>(({
@@ -16,7 +16,7 @@ const SyntaxHighlighterWrapper = memo<SyntaxHighlighterProps>(({
   theme,
   className = '',
 }) => {
-  const style = theme === 'dark' ? tomorrowNight : tomorrow;
+  const style = theme === 'dark' ? dark : tomorrow;
 
   return (
     <SyntaxHighlighter
