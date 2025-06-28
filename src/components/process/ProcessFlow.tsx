@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Upload, Search, Cog, CheckCircle, Download, ArrowRight, Play } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -141,77 +140,81 @@ const ProcessFlow = () => {
           <div className="hidden lg:block absolute top-1/2 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 via-green-500 via-purple-500 via-orange-500 to-teal-500 opacity-20" />
           
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-            {steps.map((step, index) => (
-              <div key={step.id} className="relative">
-                {/* Mobile Connection Line */}
-                {index < steps.length - 1 && (
-                  <div className="lg:hidden absolute left-1/2 top-full w-0.5 h-8 bg-gradient-to-b from-gray-300 to-gray-200 transform -translate-x-1/2" />
-                )}
-
-                <Card 
-                  className={`relative overflow-hidden transition-all duration-500 hover:shadow-xl cursor-pointer ${
-                    activeStep === index 
-                      ? 'scale-105 shadow-xl ring-2 ring-blue-500/20' 
-                      : 'hover:scale-102'
-                  }`}
-                  onClick={() => setActiveStep(index)}
-                >
-                  {/* Progress Indicator */}
-                  {activeStep === index && isAnimating && (
-                    <div className="absolute top-0 left-0 right-0 h-1">
-                      <Progress value={100} className="h-1" />
-                    </div>
+            {steps.map((step, index) => {
+              const StepIcon = step.icon;
+              
+              return (
+                <div key={step.id} className="relative">
+                  {/* Mobile Connection Line */}
+                  {index < steps.length - 1 && (
+                    <div className="lg:hidden absolute left-1/2 top-full w-0.5 h-8 bg-gradient-to-b from-gray-300 to-gray-200 transform -translate-x-1/2" />
                   )}
 
-                  {/* Gradient Background */}
-                  <div className={`absolute inset-0 bg-gradient-to-br ${step.color} opacity-5`} />
-                  
-                  <CardHeader className="relative text-center">
-                    <div className="flex justify-center mb-4">
-                      <div className={`p-4 rounded-2xl bg-gradient-to-r ${step.color} shadow-lg`}>
-                        <step.icon className="w-8 h-8 text-white" />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Badge variant="outline" className="text-xs">
-                        Step {index + 1}
-                      </Badge>
-                      <CardTitle className="text-lg">{step.title}</CardTitle>
-                      <CardDescription className="text-sm leading-relaxed">
-                        {step.description}
-                      </CardDescription>
-                    </div>
-                  </CardHeader>
-
-                  <CardContent className="relative">
-                    {/* Metrics */}
-                    <div className="grid grid-cols-1 gap-3 mb-4">
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-muted-foreground">Time:</span>
-                        <span className="font-medium">{step.metrics.time}</span>
-                      </div>
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-muted-foreground">Accuracy:</span>
-                        <span className="font-medium">{step.metrics.accuracy}</span>
-                      </div>
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-muted-foreground">Support:</span>
-                        <span className="font-medium text-right">{step.metrics.support}</span>
-                      </div>
-                    </div>
-
-                    {/* Arrow for desktop */}
-                    {index < steps.length - 1 && (
-                      <div className="hidden lg:block absolute top-1/2 -right-4 transform -translate-y-1/2 z-10">
-                        <div className="w-8 h-8 bg-background border rounded-full flex items-center justify-center shadow-sm">
-                          <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                        </div>
+                  <Card 
+                    className={`relative overflow-hidden transition-all duration-500 hover:shadow-xl cursor-pointer ${
+                      activeStep === index 
+                        ? 'scale-105 shadow-xl ring-2 ring-blue-500/20' 
+                        : 'hover:scale-102'
+                    }`}
+                    onClick={() => setActiveStep(index)}
+                  >
+                    {/* Progress Indicator */}
+                    {activeStep === index && isAnimating && (
+                      <div className="absolute top-0 left-0 right-0 h-1">
+                        <Progress value={100} className="h-1" />
                       </div>
                     )}
-                  </CardContent>
-                </Card>
-              </div>
-            ))}
+
+                    {/* Gradient Background */}
+                    <div className={`absolute inset-0 bg-gradient-to-br ${step.color} opacity-5`} />
+                    
+                    <CardHeader className="relative text-center">
+                      <div className="flex justify-center mb-4">
+                        <div className={`p-4 rounded-2xl bg-gradient-to-r ${step.color} shadow-lg`}>
+                          <StepIcon className="w-8 h-8 text-white" />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Badge variant="outline" className="text-xs">
+                          Step {index + 1}
+                        </Badge>
+                        <CardTitle className="text-lg">{step.title}</CardTitle>
+                        <CardDescription className="text-sm leading-relaxed">
+                          {step.description}
+                        </CardDescription>
+                      </div>
+                    </CardHeader>
+
+                    <CardContent className="relative">
+                      {/* Metrics */}
+                      <div className="grid grid-cols-1 gap-3 mb-4">
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-muted-foreground">Time:</span>
+                          <span className="font-medium">{step.metrics.time}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-muted-foreground">Accuracy:</span>
+                          <span className="font-medium">{step.metrics.accuracy}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-muted-foreground">Support:</span>
+                          <span className="font-medium text-right">{step.metrics.support}</span>
+                        </div>
+                      </div>
+
+                      {/* Arrow for desktop */}
+                      {index < steps.length - 1 && (
+                        <div className="hidden lg:block absolute top-1/2 -right-4 transform -translate-y-1/2 z-10">
+                          <div className="w-8 h-8 bg-background border rounded-full flex items-center justify-center shadow-sm">
+                            <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -221,7 +224,7 @@ const ProcessFlow = () => {
             <CardHeader>
               <div className="flex items-center space-x-4">
                 <div className={`p-3 rounded-xl bg-gradient-to-r ${steps[activeStep].color}`}>
-                  <steps[activeStep].icon className="w-6 h-6 text-white" />
+                  {React.createElement(steps[activeStep].icon, { className: "w-6 h-6 text-white" })}
                 </div>
                 <div>
                   <CardTitle className="text-2xl">

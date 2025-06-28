@@ -901,9 +901,9 @@ export interface ThemeContextType {
                       <h4 className="font-semibold mb-3">Performance Metrics</h4>
                       <ul className="space-y-2 text-sm text-muted-foreground">
                         <li>• Bundle size: ~45KB gzipped</li>
-                        <li>• First paint: <100ms</li>
-                        <li>• Interaction ready: <200ms</li>
-                        <li>• Memory usage: <5MB</li>
+                        <li>• First paint: under 100ms</li>
+                        <li>• Interaction ready: under 200ms</li>
+                        <li>• Memory usage: under 5MB</li>
                       </ul>
                     </div>
                   </div>
