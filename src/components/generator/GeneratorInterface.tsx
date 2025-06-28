@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { Upload, Link, Settings, Download, Play, Pause, X } from 'lucide-react';
+import { Upload, Link, Settings, Download, Play, Pause, X, Eye, Code, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,12 +9,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useFigmaProcessing } from '@/hooks/use-figma-processing';
 import { CodeGenerationConfig } from '@/types/code-generation';
 
 const GeneratorInterface = () => {
   const [figmaUrl, setFigmaUrl] = useState('');
   const [accessToken, setAccessToken] = useState('');
+  const [showPreview, setShowPreview] = useState(false);
   const [config, setConfig] = useState<CodeGenerationConfig>({
     framework: 'react',
     typescript: true,
@@ -76,6 +77,100 @@ const GeneratorInterface = () => {
     setFigmaUrl('');
     setAccessToken('');
     resetProcessing();
+  };
+
+  const handleDownloadCode = () => {
+    if (!generatedCode) return;
+
+    // Create a zip-like structure by downloading individual files
+    generatedCode.files.forEach((file) => {
+      const blob = new Blob([file.content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+
+    // Also download a summary file
+    const summary = `# Generated Code Summary
+
+Project: ${figmaFile?.name || 'Figma Project'}
+Generated: ${generatedCode.timestamp.toLocaleString()}
+Framework: ${generatedCode.config.framework}
+TypeScript: ${generatedCode.config.typescript ? 'Yes' : 'No'}
+Styling: ${generatedCode.config.styling}
+
+## Files Generated:
+${generatedCode.files.map(file => `- ${file.name} (${file.size} bytes)`).join('\n')}
+
+## Quality Metrics:
+- Overall Score: ${Math.round(generatedCode.quality.overall)}/100
+- Lines of Code: ${generatedCode.metrics.linesOfCode}
+- Components: ${generatedCode.structure.components.length}
+- Bundle Size: ${Math.round(generatedCode.metrics.bundleSize / 1024)}KB
+`;
+
+    const summaryBlob = new Blob([summary], { type: 'text/markdown' });
+    const summaryUrl = URL.createObjectURL(summaryBlob);
+    const summaryLink = document.createElement('a');
+    summaryLink.href = summaryUrl;
+    summaryLink.download = 'README.md';
+    document.body.appendChild(summaryLink);
+    summaryLink.click();
+    document.body.removeChild(summaryLink);
+    URL.revokeObjectURL(summaryUrl);
+  };
+
+  const handleViewPreview = () => {
+    if (!generatedCode) return;
+    setShowPreview(true);
+  };
+
+  const handleViewQualityReport = () => {
+    if (!generatedCode) return;
+
+    const report = `# Quality Assessment Report
+
+Generated: ${generatedCode.timestamp.toLocaleString()}
+Overall Score: ${Math.round(generatedCode.quality.overall)}/100
+
+## Category Scores:
+- Visual Fidelity: ${Math.round(generatedCode.quality.categories.visual)}/100
+- Code Quality: ${Math.round(generatedCode.quality.categories.code)}/100
+- Performance: ${Math.round(generatedCode.quality.categories.performance)}/100
+- Accessibility: ${Math.round(generatedCode.quality.categories.accessibility)}/100
+- Maintainability: ${Math.round(generatedCode.quality.categories.maintainability)}/100
+- Security: ${Math.round(generatedCode.quality.categories.security)}/100
+
+## Metrics:
+- Lines of Code: ${generatedCode.metrics.linesOfCode}
+- Complexity Score: ${generatedCode.metrics.complexity}
+- Maintainability Index: ${Math.round(generatedCode.metrics.maintainabilityIndex)}
+- Test Coverage: ${Math.round(generatedCode.metrics.testCoverage)}%
+- Bundle Size: ${Math.round(generatedCode.metrics.bundleSize / 1024)}KB
+- Load Time: ${Math.round(generatedCode.metrics.loadTime)}ms
+- Performance Score: ${Math.round(generatedCode.metrics.performanceScore)}
+
+## Recommendations:
+${generatedCode.quality.recommendations?.map(rec => `- ${rec}`).join('\n') || '- No specific recommendations at this time'}
+
+## Issues Found:
+${generatedCode.quality.issues?.map(issue => `- ${issue.level.toUpperCase()}: ${issue.message}`).join('\n') || '- No issues found'}
+`;
+
+    const reportBlob = new Blob([report], { type: 'text/markdown' });
+    const reportUrl = URL.createObjectURL(reportBlob);
+    const reportLink = document.createElement('a');
+    reportLink.href = reportUrl;
+    reportLink.download = 'quality-report.md';
+    document.body.appendChild(reportLink);
+    reportLink.click();
+    document.body.removeChild(reportLink);
+    URL.revokeObjectURL(reportUrl);
   };
 
   return (
@@ -401,14 +496,16 @@ const GeneratorInterface = () => {
                         </div>
                       </div>
                       <div className="flex flex-col sm:flex-row gap-2">
-                        <Button size="sm" variant="outline">
+                        <Button size="sm" variant="outline" onClick={handleDownloadCode}>
                           <Download className="w-4 h-4 mr-2" />
                           Download Code
                         </Button>
-                        <Button size="sm" variant="outline">
+                        <Button size="sm" variant="outline" onClick={handleViewPreview}>
+                          <Eye className="w-4 h-4 mr-2" />
                           View Preview
                         </Button>
-                        <Button size="sm" variant="outline">
+                        <Button size="sm" variant="outline" onClick={handleViewQualityReport}>
+                          <FileText className="w-4 h-4 mr-2" />
                           Quality Report
                         </Button>
                       </div>
@@ -419,6 +516,61 @@ const GeneratorInterface = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Preview Dialog */}
+        <Dialog open={showPreview} onOpenChange={setShowPreview}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden">
+            <DialogHeader>
+              <DialogTitle>Code Preview</DialogTitle>
+              <DialogDescription>
+                Preview of the generated code structure and content
+              </DialogDescription>
+            </DialogHeader>
+            <div className="overflow-auto max-h-[60vh]">
+              {generatedCode && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div className="text-sm">
+                      <strong>Framework:</strong> {generatedCode.config.framework}
+                    </div>
+                    <div className="text-sm">
+                      <strong>TypeScript:</strong> {generatedCode.config.typescript ? 'Yes' : 'No'}
+                    </div>
+                    <div className="text-sm">
+                      <strong>Styling:</strong> {generatedCode.config.styling}
+                    </div>
+                    <div className="text-sm">
+                      <strong>Files:</strong> {generatedCode.files.length}
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <h4 className="font-semibold">Generated Files:</h4>
+                    {generatedCode.files.map((file, index) => (
+                      <Card key={index} className="p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <Code className="w-4 h-4" />
+                            <span className="font-medium">{file.name}</span>
+                            <Badge variant="outline" className="text-xs">
+                              {file.language}
+                            </Badge>
+                          </div>
+                          <span className="text-sm text-muted-foreground">
+                            {Math.round(file.size / 1024 * 100) / 100} KB
+                          </span>
+                        </div>
+                        <pre className="bg-muted p-3 rounded text-xs overflow-auto max-h-32">
+                          <code>{file.content.slice(0, 500)}{file.content.length > 500 ? '...' : ''}</code>
+                        </pre>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </section>
   );
