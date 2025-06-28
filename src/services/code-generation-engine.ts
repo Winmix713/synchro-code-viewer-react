@@ -750,4 +750,27 @@ export class CodeGenerationEngine {
   }
 
   private generatePreview(files: any[]): string {
-    // Generate a simple HTML
+    // Generate a simple HTML preview
+    const mainComponent = files.find(file => file.path.includes('.tsx') || file.path.includes('.jsx'));
+    
+    if (!mainComponent) {
+      return '<div>No preview available</div>';
+    }
+    
+    return `
+      <div style="padding: 20px; font-family: Arial, sans-serif;">
+        <h2>Generated Component Preview</h2>
+        <p>Component: ${mainComponent.name}</p>
+        <p>Size: ${mainComponent.size} bytes</p>
+        <p>Language: ${mainComponent.language}</p>
+        <div style="background: #f5f5f5; padding: 10px; border-radius: 4px; margin-top: 10px;">
+          <code>Preview of generated React component</code>
+        </div>
+      </div>
+    `;
+  }
+
+  private generateId(): string {
+    return Math.random().toString(36).substr(2, 9);
+  }
+}
