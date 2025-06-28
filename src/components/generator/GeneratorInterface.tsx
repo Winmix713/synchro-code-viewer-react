@@ -70,7 +70,13 @@ const GeneratorInterface = () => {
       return;
     }
 
-    // Start processing
+    // If validation indicates auth is required but we don't have a token, 
+    // still proceed to let the API call handle it and show the proper error
+    if (validation.error && validation.error.includes('requires authentication') && !accessToken) {
+      console.warn('File requires authentication, but no token provided. Proceeding to show auth error.');
+    }
+
+    // Start processing - let the processing hook handle auth errors properly
     await startProcessing(figmaUrl, config, accessToken || undefined);
   };
 
