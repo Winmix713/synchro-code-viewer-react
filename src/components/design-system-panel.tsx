@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -14,8 +13,8 @@ import { TokenPreviewTabs } from './preview/token-preview-tabs';
 import { ExportConfiguration } from './export/export-configuration';
 import { TokenSearch } from './search-filter/token-search';
 import { TokenStatistics } from './statistics/token-statistics';
-import { LoadingStates } from './ui/loading-states';
-import { ToastNotifications } from './ui/toast-notifications';
+import { LoadingStates } from '@/components/ui/loading-states';
+import { ToastNotifications } from '@/components/ui/toast-notifications';
 import { 
   Palette, 
   Type, 
