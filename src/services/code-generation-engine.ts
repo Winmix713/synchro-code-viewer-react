@@ -774,3 +774,6 @@ export class CodeGenerationEngine {
     return Math.random().toString(36).substr(2, 9);
   }
 }
+
+// Export singleton instance for named import
+export const codeGenerationEngine = CodeGenerationEngine.getInstance();
