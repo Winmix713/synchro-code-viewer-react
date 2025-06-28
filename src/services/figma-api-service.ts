@@ -1,4 +1,3 @@
-
 import { FigmaFile, FigmaApiResponse, ProcessingPhase } from '@/types/figma-api';
 
 export class FigmaApiService {
@@ -68,7 +67,7 @@ export class FigmaApiService {
 
   async validateFigmaUrl(url: string): Promise<{ valid: boolean; fileId?: string; error?: string }> {
     try {
-      const figmaUrlPattern = /^https:\/\/(?:www\.)?figma\.com\/(?:file|proto)\/([a-zA-Z0-9]{22,128})(?:\/.*)?$/;
+      const figmaUrlPattern = /^https:\/\/(?:www\.)?figma\.com\/(?:file|proto|design)\/([a-zA-Z0-9]{22,128})(?:\/.*)?$/;
       const match = url.match(figmaUrlPattern);
 
       if (!match) {
