@@ -1,4 +1,3 @@
-
 import { CodeGenerationConfig, GeneratedCode, ComponentMapping, QualityAssessment } from '@/types/code-generation';
 import { FigmaFile, FigmaNode } from '@/types/figma-api';
 
@@ -25,8 +24,8 @@ export class CodeGenerationEngine {
       onProgress?.(10, 'Analyzing Figma structure...');
       const componentMappings = this.analyzeStructure(figmaFile.document);
       
-      onProgress?.(30, 'Generating components...');
-      const files = await this.generateFiles(componentMappings, config);
+      onProgress?.(30, 'Generating unified component...');
+      const files = await this.generateSingleTSXFile(componentMappings, config, figmaFile.name);
       
       onProgress?.(60, 'Optimizing code...');
       const optimizedFiles = this.optimizeCode(files, config);
@@ -45,7 +44,7 @@ export class CodeGenerationEngine {
         config,
         files: optimizedFiles,
         structure,
-        metrics: this.calculateMetrics(optimizedFiles),
+        metrics: this.calculateMetrics(optimizedFiles, componentMappings.length),
         quality,
         preview: this.generatePreview(optimizedFiles),
         buildStatus: quality.overall >= 80 ? 'success' : quality.overall >= 60 ? 'warning' : 'error',
@@ -114,7 +113,7 @@ export class CodeGenerationEngine {
       props.push({
         name: 'text',
         type: 'string',
-        required: true,
+        required: false,
         defaultValue: node.characters,
         description: 'Text content for the component',
       });
@@ -325,78 +324,61 @@ export class CodeGenerationEngine {
     return features;
   }
 
-  private async generateFiles(mappings: ComponentMapping[], config: CodeGenerationConfig): Promise<any[]> {
+  private async generateSingleTSXFile(mappings: ComponentMapping[], config: CodeGenerationConfig, projectName: string): Promise<any[]> {
     const files = [];
     
-    // Generate component files
-    for (const mapping of mappings) {
-      const componentFile = this.generateComponentFile(mapping, config);
-      files.push(componentFile);
-      
-      if (config.testing.unitTests) {
-        const testFile = this.generateTestFile(mapping, config);
-        files.push(testFile);
-      }
-    }
+    // Generate the main unified component file
+    const mainComponentFile = this.generateUnifiedComponentFile(mappings, config, projectName);
+    files.push(mainComponentFile);
     
-    // Generate index file
-    files.push(this.generateIndexFile(mappings, config));
-    
-    // Generate types file
+    // Generate types file if TypeScript is enabled
     if (config.typescript) {
-      files.push(this.generateTypesFile(mappings));
+      const typesFile = this.generateTypesFile(mappings);
+      files.push(typesFile);
     }
     
     // Generate styles file
-    files.push(this.generateStylesFile(mappings, config));
+    const stylesFile = this.generateStylesFile(mappings, config);
+    files.push(stylesFile);
+    
+    // Generate package.json
+    const packageJsonFile = this.generatePackageJson(config, projectName);
+    files.push(packageJsonFile);
     
     return files;
   }
 
-  private generateComponentFile(mapping: ComponentMapping, config: CodeGenerationConfig): any {
-    const { componentName, props, styling } = mapping;
+  private generateUnifiedComponentFile(mappings: ComponentMapping[], config: CodeGenerationConfig, projectName: string): any {
     const extension = config.typescript ? '.tsx' : '.jsx';
+    const componentName = this.sanitizeComponentName(projectName) || 'GeneratedApp';
     
     let content = '';
     
     // Imports
-    content += `import React from 'react';\n`;
+    content += `import React, { useState } from 'react';\n`;
+    if (config.styling === 'tailwind') {
+      content += `import './styles.css';\n`;
+    }
     if (config.typescript) {
-      content += `\ninterface ${componentName}Props {\n`;
-      props.forEach(prop => {
-        content += `  ${prop.name}${prop.required ? '' : '?'}: ${prop.type};\n`;
-      });
-      content += `}\n`;
+      content += `import { ComponentProps } from './types';\n`;
     }
+    content += '\n';
     
-    // Component definition
-    const propsParam = config.typescript ? `props: ${componentName}Props` : 'props';
-    content += `\nconst ${componentName} = (${propsParam}) => {\n`;
+    // Generate individual component functions
+    mappings.forEach((mapping, index) => {
+      content += this.generateComponentFunction(mapping, config, index);
+      content += '\n';
+    });
     
-    // Props destructuring
-    if (props.length > 0) {
-      const propNames = props.map(p => p.name).join(', ');
-      content += `  const { ${propNames} } = props;\n`;
-    }
+    // Generate main app component that uses all sub-components
+    content += this.generateMainAppComponent(mappings, config, componentName);
     
-    // Component logic
-    content += `\n  return (\n`;
-    content += `    <div className="${styling.classes.join(' ')}">\n`;
-    
-    if (props.some(p => p.name === 'text')) {
-      content += `      {text}\n`;
-    } else {
-      content += `      {/* Component content */}\n`;
-    }
-    
-    content += `    </div>\n`;
-    content += `  );\n`;
-    content += `};\n\n`;
-    content += `export default ${componentName};\n`;
+    // Export
+    content += `\nexport default ${componentName};\n`;
     
     return {
-      path: `src/components/${componentName}${extension}`,
-      name: componentName + extension,
+      path: `src/${componentName}${extension}`,
+      name: `${componentName}${extension}`,
       extension: extension.slice(1),
       content,
       size: content.length,
@@ -407,61 +389,164 @@ export class CodeGenerationEngine {
     };
   }
 
-  private generateTestFile(mapping: ComponentMapping, config: CodeGenerationConfig): any {
-    const { componentName } = mapping;
-    const extension = config.typescript ? '.test.tsx' : '.test.jsx';
+  private generateComponentFunction(mapping: ComponentMapping, config: CodeGenerationConfig, index: number): string {
+    const { componentName, props, styling, state } = mapping;
     
     let content = '';
-    content += `import React from 'react';\n`;
-    content += `import { render, screen } from '@testing-library/react';\n`;
-    content += `import ${componentName} from './${componentName}';\n\n`;
     
-    content += `describe('${componentName}', () => {\n`;
-    content += `  it('renders without crashing', () => {\n`;
-    content += `    render(<${componentName} />);\n`;
-    content += `  });\n`;
-    content += `});\n`;
+    // Component interface (TypeScript only)
+    if (config.typescript && props.length > 0) {
+      content += `interface ${componentName}Props {\n`;
+      props.forEach(prop => {
+        content += `  ${prop.name}${prop.required ? '' : '?'}: ${prop.type};\n`;
+      });
+      content += `}\n\n`;
+    }
     
-    return {
-      path: `src/components/${componentName}${extension}`,
-      name: componentName + extension,
-      extension: extension.slice(1),
-      content,
-      size: content.length,
-      language: config.typescript ? 'typescript' : 'javascript',
-      imports: ['react', '@testing-library/react'],
-      exports: [],
-      dependencies: ['@testing-library/react'],
-    };
-  }
-
-  private generateIndexFile(mappings: ComponentMapping[], config: CodeGenerationConfig): any {
-    const extension = config.typescript ? '.ts' : '.js';
+    // Component function
+    const propsParam = config.typescript && props.length > 0 ? `props: ${componentName}Props` : 'props = {}';
+    content += `const ${componentName} = (${propsParam}) => {\n`;
     
-    let content = '';
-    mappings.forEach(mapping => {
-      content += `export { default as ${mapping.componentName} } from './components/${mapping.componentName}';\n`;
+    // Props destructuring
+    if (props.length > 0) {
+      const propNames = props.map(p => `${p.name} = ${JSON.stringify(p.defaultValue)}`).join(', ');
+      content += `  const { ${propNames} } = props;\n`;
+    }
+    
+    // State hooks
+    state.forEach(stateItem => {
+      content += `  const [${stateItem.name}, set${stateItem.name.charAt(0).toUpperCase() + stateItem.name.slice(1)}] = useState(${JSON.stringify(stateItem.initialValue)});\n`;
     });
     
-    return {
-      path: `src/index${extension}`,
-      name: `index${extension}`,
-      extension: extension.slice(1),
-      content,
-      size: content.length,
-      language: config.typescript ? 'typescript' : 'javascript',
-      imports: [],
-      exports: mappings.map(m => m.componentName),
-      dependencies: [],
-    };
+    // Event handlers
+    if (this.isInteractiveElement({ name: componentName } as any)) {
+      content += `\n  const handleClick = (event: React.MouseEvent) => {\n`;
+      content += `    console.log('${componentName} clicked');\n`;
+      if (state.some(s => s.name === 'isActive')) {
+        content += `    setIsActive(!isActive);\n`;
+      }
+      content += `  };\n`;
+    }
+    
+    // Component JSX
+    content += `\n  return (\n`;
+    content += `    <div \n`;
+    content += `      className="${styling.classes.join(' ')}"\n`;
+    if (this.isInteractiveElement({ name: componentName } as any)) {
+      content += `      onClick={handleClick}\n`;
+      content += `      role="button"\n`;
+      content += `      tabIndex={0}\n`;
+    }
+    content += `    >\n`;
+    
+    // Content based on component type
+    if (props.some(p => p.name === 'text')) {
+      content += `      <span>{text}</span>\n`;
+    } else {
+      content += `      <div className="p-4">\n`;
+      content += `        <h3 className="text-lg font-semibold mb-2">${componentName}</h3>\n`;
+      content += `        <p className="text-gray-600">Generated component from Figma design</p>\n`;
+      content += `      </div>\n`;
+    }
+    
+    content += `    </div>\n`;
+    content += `  );\n`;
+    content += `};\n`;
+    
+    return content;
+  }
+
+  private generateMainAppComponent(mappings: ComponentMapping[], config: CodeGenerationConfig, componentName: string): string {
+    let content = '';
+    
+    // Main app interface (TypeScript only)
+    if (config.typescript) {
+      content += `\ninterface ${componentName}Props {\n`;
+      content += `  className?: string;\n`;
+      content += `}\n\n`;
+    }
+    
+    // Main app component
+    const propsParam = config.typescript ? `props: ${componentName}Props = {}` : 'props = {}';
+    content += `const ${componentName} = (${propsParam}) => {\n`;
+    content += `  const { className = '' } = props;\n\n`;
+    
+    // State for demo purposes
+    content += `  const [activeComponent, setActiveComponent] = useState<string | null>(null);\n\n`;
+    
+    // Component JSX
+    content += `  return (\n`;
+    content += `    <div className={\`min-h-screen bg-gray-50 p-8 \${className}\`}>\n`;
+    content += `      <div className="max-w-6xl mx-auto">\n`;
+    content += `        <header className="text-center mb-12">\n`;
+    content += `          <h1 className="text-4xl font-bold text-gray-900 mb-4">\n`;
+    content += `            Generated Components\n`;
+    content += `          </h1>\n`;
+    content += `          <p className="text-xl text-gray-600">\n`;
+    content += `            ${mappings.length} components generated from Figma design\n`;
+    content += `          </p>\n`;
+    content += `        </header>\n\n`;
+    
+    content += `        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">\n`;
+    
+    // Render all components
+    mappings.forEach((mapping, index) => {
+      content += `          <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">\n`;
+      content += `            <div className="mb-4">\n`;
+      content += `              <h3 className="text-lg font-semibold text-gray-800 mb-2">\n`;
+      content += `                ${mapping.componentName}\n`;
+      content += `              </h3>\n`;
+      content += `              <p className="text-sm text-gray-600 mb-4">\n`;
+      content += `                Component ${index + 1} of ${mappings.length}\n`;
+      content += `              </p>\n`;
+      content += `            </div>\n`;
+      content += `            <${mapping.componentName} />\n`;
+      content += `          </div>\n`;
+    });
+    
+    content += `        </div>\n`;
+    
+    // Footer with component info
+    content += `\n        <footer className="mt-16 text-center">\n`;
+    content += `          <div className="bg-white rounded-lg shadow-md p-6">\n`;
+    content += `            <h2 className="text-2xl font-bold text-gray-900 mb-4">Component Summary</h2>\n`;
+    content += `            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">\n`;
+    content += `              <div>\n`;
+    content += `                <div className="text-3xl font-bold text-blue-600">${mappings.length}</div>\n`;
+    content += `                <div className="text-gray-600">Components</div>\n`;
+    content += `              </div>\n`;
+    content += `              <div>\n`;
+    content += `                <div className="text-3xl font-bold text-green-600">${config.typescript ? 'TypeScript' : 'JavaScript'}</div>\n`;
+    content += `                <div className="text-gray-600">Language</div>\n`;
+    content += `              </div>\n`;
+    content += `              <div>\n`;
+    content += `                <div className="text-3xl font-bold text-purple-600">${config.styling}</div>\n`;
+    content += `                <div className="text-gray-600">Styling</div>\n`;
+    content += `              </div>\n`;
+    content += `            </div>\n`;
+    content += `          </div>\n`;
+    content += `        </footer>\n`;
+    content += `      </div>\n`;
+    content += `    </div>\n`;
+    content += `  );\n`;
+    content += `};\n`;
+    
+    return content;
   }
 
   private generateTypesFile(mappings: ComponentMapping[]): any {
     let content = '';
     content += `// Generated TypeScript definitions\n\n`;
     
+    // Common props interface
+    content += `export interface ComponentProps {\n`;
+    content += `  className?: string;\n`;
+    content += `  children?: React.ReactNode;\n`;
+    content += `}\n\n`;
+    
+    // Individual component interfaces
     mappings.forEach(mapping => {
-      content += `export interface ${mapping.componentName}Props {\n`;
+      content += `export interface ${mapping.componentName}Props extends ComponentProps {\n`;
       mapping.props.forEach(prop => {
         content += `  ${prop.name}${prop.required ? '' : '?'}: ${prop.type};\n`;
       });
@@ -469,14 +554,14 @@ export class CodeGenerationEngine {
     });
     
     return {
-      path: 'src/types/components.ts',
-      name: 'components.ts',
+      path: 'src/types.ts',
+      name: 'types.ts',
       extension: 'ts',
       content,
       size: content.length,
       language: 'typescript',
       imports: [],
-      exports: mappings.map(m => `${m.componentName}Props`),
+      exports: mappings.map(m => `${m.componentName}Props`).concat(['ComponentProps']),
       dependencies: [],
     };
   }
@@ -487,11 +572,19 @@ export class CodeGenerationEngine {
     if (config.styling === 'tailwind') {
       content += `@tailwind base;\n@tailwind components;\n@tailwind utilities;\n\n`;
       content += `/* Generated component styles */\n`;
+      content += `\n/* Custom component styles can be added here */\n`;
     } else {
       content += `/* Generated component styles */\n\n`;
+      content += `body {\n`;
+      content += `  margin: 0;\n`;
+      content += `  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;\n`;
+      content += `  -webkit-font-smoothing: antialiased;\n`;
+      content += `  -moz-osx-font-smoothing: grayscale;\n`;
+      content += `}\n\n`;
+      
       mappings.forEach(mapping => {
         content += `.${mapping.componentName.toLowerCase()} {\n`;
-        content += `  /* Add custom styles here */\n`;
+        content += `  /* Add custom styles for ${mapping.componentName} here */\n`;
         content += `}\n\n`;
       });
     }
@@ -499,8 +592,8 @@ export class CodeGenerationEngine {
     const extension = config.styling === 'scss' ? '.scss' : '.css';
     
     return {
-      path: `src/styles/index${extension}`,
-      name: `index${extension}`,
+      path: `src/styles${extension}`,
+      name: `styles${extension}`,
       extension: extension.slice(1),
       content,
       size: content.length,
@@ -508,6 +601,57 @@ export class CodeGenerationEngine {
       imports: [],
       exports: [],
       dependencies: config.styling === 'tailwind' ? ['tailwindcss'] : [],
+    };
+  }
+
+  private generatePackageJson(config: CodeGenerationConfig, projectName: string): any {
+    const packageName = projectName.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    
+    const packageJson = {
+      name: packageName,
+      version: '1.0.0',
+      description: `Generated React application from Figma design`,
+      main: 'src/index.tsx',
+      scripts: {
+        dev: 'vite',
+        build: 'vite build',
+        preview: 'vite preview',
+        lint: 'eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0'
+      },
+      dependencies: {
+        react: '^18.2.0',
+        'react-dom': '^18.2.0'
+      },
+      devDependencies: {
+        '@types/react': '^18.2.0',
+        '@types/react-dom': '^18.2.0',
+        '@vitejs/plugin-react': '^4.0.0',
+        vite: '^4.4.0'
+      }
+    };
+
+    if (config.typescript) {
+      packageJson.devDependencies['typescript'] = '^5.0.0';
+    }
+
+    if (config.styling === 'tailwind') {
+      packageJson.devDependencies['tailwindcss'] = '^3.3.0';
+      packageJson.devDependencies['autoprefixer'] = '^10.4.0';
+      packageJson.devDependencies['postcss'] = '^8.4.0';
+    }
+
+    const content = JSON.stringify(packageJson, null, 2);
+    
+    return {
+      path: 'package.json',
+      name: 'package.json',
+      extension: 'json',
+      content,
+      size: content.length,
+      language: 'json',
+      imports: [],
+      exports: [],
+      dependencies: Object.keys(packageJson.dependencies),
     };
   }
 
@@ -555,7 +699,12 @@ export class CodeGenerationEngine {
         security: Math.random() * 10 + 90,
       },
       issues: [],
-      recommendations: [],
+      recommendations: [
+        'Consider adding unit tests for better code coverage',
+        'Implement error boundaries for better error handling',
+        'Add loading states for better user experience',
+        'Consider implementing lazy loading for performance optimization'
+      ],
     };
   }
 
@@ -572,15 +721,11 @@ export class CodeGenerationEngine {
     };
     
     files.forEach(file => {
-      if (file.path.includes('/components/')) {
-        if (!file.name.includes('.test.')) {
-          structure.components.push(file.path);
-        } else {
-          structure.tests.push(file.path);
-        }
-      } else if (file.path.includes('/types/')) {
+      if (file.path.includes('.tsx') || file.path.includes('.jsx')) {
+        structure.components.push(file.path);
+      } else if (file.path.includes('/types')) {
         structure.types.push(file.path);
-      } else if (file.path.includes('/styles/')) {
+      } else if (file.path.includes('/styles') || file.path.includes('.css') || file.path.includes('.scss')) {
         structure.styles.push(file.path);
       }
     });
@@ -588,7 +733,7 @@ export class CodeGenerationEngine {
     return structure;
   }
 
-  private calculateMetrics(files: any[]): any {
+  private calculateMetrics(files: any[], componentCount: number): any {
     const totalLines = files.reduce((sum, file) => sum + file.content.split('\n').length, 0);
     const totalSize = files.reduce((sum, file) => sum + file.size, 0);
     
@@ -605,32 +750,4 @@ export class CodeGenerationEngine {
   }
 
   private generatePreview(files: any[]): string {
-    // Generate a simple HTML preview
-    return `
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Generated Components Preview</title>
-        <script src="https://cdn.tailwindcss.com"></script>
-      </head>
-      <body class="p-8 bg-gray-100">
-        <h1 class="text-3xl font-bold mb-8">Generated Components</h1>
-        <div class="space-y-4">
-          <!-- Components would be rendered here -->
-          <div class="p-4 bg-white rounded-lg shadow">
-            <p>Preview of generated components will appear here</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
-  }
-
-  private generateId(): string {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2);
-  }
-}
-
-export const codeGenerationEngine = CodeGenerationEngine.getInstance();
+    // Generate a simple HTML
