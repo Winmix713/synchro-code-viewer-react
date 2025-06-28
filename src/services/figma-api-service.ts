@@ -36,6 +36,15 @@ export class FigmaApiService {
       });
 
       if (!response.ok) {
+        if (response.status === 403) {
+          throw new Error('Access denied. This Figma file requires authentication. Please provide a valid Figma Personal Access Token. You can generate one from your Figma account settings under "Personal access tokens".');
+        }
+        if (response.status === 404) {
+          throw new Error('Figma file not found. Please check if the file exists and the URL is correct.');
+        }
+        if (response.status === 401) {
+          throw new Error('Invalid or expired access token. Please check your Figma Personal Access Token and try again.');
+        }
         throw new Error(`Figma API error: ${response.status} ${response.statusText}`);
       }
 

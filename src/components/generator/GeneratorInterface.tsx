@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, Link, Settings, Download, Play, Pause, X, Eye, Code, FileText } from 'lucide-react';
+import { Upload, Link, Settings, Download, Play, Pause, X, Eye, Code, FileText, AlertCircle, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useFigmaProcessing } from '@/hooks/use-figma-processing';
 import { CodeGenerationConfig } from '@/types/code-generation';
 
@@ -173,6 +174,14 @@ ${generatedCode.quality.issues?.map(issue => `- ${issue.level.toUpperCase()}: ${
     URL.revokeObjectURL(reportUrl);
   };
 
+  // Check if error is related to authentication
+  const isAuthError = error && (
+    error.includes('Access denied') || 
+    error.includes('requires authentication') || 
+    error.includes('403') ||
+    error.includes('Invalid or expired access token')
+  );
+
   return (
     <section id="generator" className="py-16 sm:py-20 bg-muted/30">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -199,6 +208,23 @@ ${generatedCode.quality.issues?.map(issue => `- ${issue.level.toUpperCase()}: ${
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Authentication Info Alert */}
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Need a Figma Access Token?</strong> For private files, generate a Personal Access Token from your{' '}
+                  <a 
+                    href="https://www.figma.com/developers/api#access-tokens" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-800 underline"
+                  >
+                    Figma account settings
+                  </a>{' '}
+                  under "Personal access tokens".
+                </AlertDescription>
+              </Alert>
+
               {/* Input Section */}
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -218,7 +244,10 @@ ${generatedCode.quality.issues?.map(issue => `- ${issue.level.toUpperCase()}: ${
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="access-token">Access Token (Optional)</Label>
+                    <Label htmlFor="access-token">
+                      Access Token 
+                      {isAuthError && <span className="text-red-500 ml-1">*Required</span>}
+                    </Label>
                     <Input
                       id="access-token"
                       type="password"
@@ -226,6 +255,7 @@ ${generatedCode.quality.issues?.map(issue => `- ${issue.level.toUpperCase()}: ${
                       value={accessToken}
                       onChange={(e) => setAccessToken(e.target.value)}
                       disabled={isProcessing}
+                      className={isAuthError ? "border-red-300 focus:border-red-500" : ""}
                     />
                   </div>
                 </div>
@@ -454,10 +484,23 @@ ${generatedCode.quality.issues?.map(issue => `- ${issue.level.toUpperCase()}: ${
                 <Card className="border-destructive/50 text-destructive">
                   <CardContent className="pt-6">
                     <div className="flex items-start space-x-2">
-                      <X className="w-5 h-5 mt-0.5" />
-                      <div>
+                      <AlertCircle className="w-5 h-5 mt-0.5" />
+                      <div className="flex-1">
                         <h4 className="font-medium">Generation Failed</h4>
                         <p className="text-sm mt-1">{error}</p>
+                        {isAuthError && (
+                          <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-md">
+                            <p className="text-sm text-red-800">
+                              <strong>How to fix this:</strong>
+                            </p>
+                            <ol className="text-sm text-red-700 mt-1 ml-4 list-decimal">
+                              <li>Go to <a href="https://www.figma.com/developers/api#access-tokens" target="_blank" rel="noopener noreferrer" className="underline">Figma Developer Settings</a></li>
+                              <li>Generate a new Personal Access Token</li>
+                              <li>Copy the token and paste it in the "Access Token" field above</li>
+                              <li>Try generating the code again</li>
+                            </ol>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </CardContent>
